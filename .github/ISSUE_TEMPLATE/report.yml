@@ -1,0 +1,53 @@
+name: "Report / Reporte"
+description: "Share your check or test result (EN/ES). Negative results help too. / Comparte tu resultado. Los negativos también ayudan."
+title: "[Report] <model> <BIOS> – <POSITIVE/NEGATIVE/…>"
+labels: ["report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for running the tools! Paste the generated `.md` file(s) below. They contain no serial number or user name, but have a look before posting.
+        ¡Gracias por correr las herramientas! Pega abajo el o los archivos `.md` generados. No contienen número de serie ni nombre de usuario, pero revísalos antes de publicar.
+  - type: input
+    id: model
+    attributes:
+      label: "Model and BIOS / Modelo y BIOS"
+      placeholder: "LOQ 15ARP9 83JC, PQCN31WW"
+    validations:
+      required: true
+  - type: input
+    id: age
+    attributes:
+      label: "Laptop age / Antigüedad del equipo"
+      placeholder: "11 months / 11 meses"
+  - type: textarea
+    id: symptoms
+    attributes:
+      label: "Your symptoms / Tus síntomas"
+      description: "Crashes in sleep, cold boot failures, crashes on battery… or none. / Cuelgues en suspensión, fallas al encender en frío, con batería… o ninguno."
+  - type: textarea
+    id: check
+    attributes:
+      label: "Read-only check report (loq-report-….md) / Reporte de la revisión"
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: test
+    attributes:
+      label: "Active test report (vmin-report-….md), if you ran it / Reporte de la prueba activa, si la corriste"
+      render: markdown
+  - type: dropdown
+    id: crashed
+    attributes:
+      label: "Did the active test crash your PC? / ¿La prueba activa colgó tu PC?"
+      options:
+        - "Did not run it / No la corrí"
+        - "No crash / No se colgó"
+        - "Crashed in phase B (low voltage) / Se colgó en la fase B (bajo voltaje)"
+        - "Crashed in another phase / Se colgó en otra fase"
+  - type: textarea
+    id: feedback
+    attributes:
+      label: "Anything unclear or broken? / ¿Algo confuso o que no funcionó?"
+      description: "Paste console errors here. / Pega aquí los errores de la consola."

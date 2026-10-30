@@ -1,0 +1,4 @@
+# outputs generated on your own PC
+/loq-report-*
+/vmin-report-*
+/vmin-run-*.log

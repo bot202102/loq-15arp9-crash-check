@@ -13,6 +13,10 @@ On our unit all of that came from **one CPU core whose L1 data cache fails at lo
 
 **We need your data** to find out whether this is a batch/design problem or a few bad units. It takes 1 minute (read-only check) or about 23 minutes (optional active test).
 
+![Live monitor showing 31 hardware errors, all from core 7, only during the low-voltage phase](docs/live-monitor.png)
+
+*The live monitor (`loq-live-monitor.ps1`) replaying our 30-Oct reference run (`-Since` / `-RunLog`): real WHEA events from the Windows log, 31 errors, all from core 7, all during phase B (lowest voltage), none before or after.*
+
 ---
 
 ## 1. Read-only check (1 minute, changes nothing)
@@ -51,6 +55,16 @@ A light load runs on **every** logical CPU, so whichever core is weak shows up. 
 **If it crashes:** let it reboot, log in, and run `loq-vmin-test.ps1 -Report`. It reads the interrupted run and writes the report. A crash in phase B is also a result.
 
 To check the mechanics first, with no low voltage: `loq-vmin-test.ps1 -Rehearsal` (3 × 1 min with a harmless 90 % cap).
+
+### Watch it live
+
+`RUN-VMIN-TEST.cmd` also opens a second window, **`loq-live-monitor.ps1`**. Every 3 seconds it shows the current phase, CPU performance (whether the low-voltage cap is active), whether the charger is connected, and a big **green "NO HARDWARE ERRORS" / red "N HARDWARE ERRORS – core X: N"** banner, with errors per phase and the latest errors decoded (core, APIC id, CPU unit).
+
+- It is **read-only**: it only reads the Windows event log. Closing it does not affect the test.
+- You can run it on its own at any time: `loq-live-monitor.ps1` (from now), or `loq-live-monitor.ps1 -Since "2026-10-30 02:00"` to look back.
+- If it cannot read the event log it says so in **yellow**, instead of showing a false green.
+- Interface in English or Spanish (automatic, or `-Lang en|es`).
+- Useful for a technician visit: run the test on the repaired laptop **before signing the repair as OK**. A healthy board shows 0 errors in phase B.
 
 ### Why your PC won't come back in a crash loop
 

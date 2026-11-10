@@ -1,4 +1,4 @@
-<#
+﻿<#
   loq-vmin-test.ps1  -  OPTIONAL active test: does a CPU core throw hardware errors at its lowest voltage?
 
   WHAT IT DOES (about 23 minutes, plugged in):
@@ -29,7 +29,7 @@
 param([int]$BaselineMin = 3, [int]$LowMin = 15, [int]$RecoveryMin = 5, [int]$StopAfter = 3, [int]$SleepMs = 20,
       [switch]$Rehearsal, [switch]$Report, [switch]$Yes)
 $ErrorActionPreference = 'Continue'
-$Version = '1.0.0'
+$Version = '1.0.1'
 [Threading.Thread]::CurrentThread.CurrentCulture = [Globalization.CultureInfo]::InvariantCulture
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SUB = '54533251-82be-4824-96c1-47b60b740d00'; $MIN = '893dee8e-2bef-41e0-89c6-b55d0929964c'; $MAX = 'bc5038f7-23e0-4960-96da-33abaf5935ec'
@@ -41,8 +41,12 @@ function ActiveScheme { $s = powercfg /getactivescheme | Out-String; ([regex]::M
 function PlanAC([string]$scheme, [string]$set) { $q = powercfg /q $scheme $SUB $set | Out-String; $h = @([regex]::Matches($q, '0x[0-9a-fA-F]{8}') | ForEach-Object Value); if ($h.Count -ge 2) { [Convert]::ToInt32($h[-2], 16) } else { $null } }
 function PerfMax { (Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation | Where-Object { $_.Name -notmatch '_Total' } | Measure-Object PercentProcessorPerformance -Maximum).Maximum }
 function OnAC { Add-Type -AssemblyName System.Windows.Forms; [string]([Windows.Forms.SystemInformation]::PowerStatus.PowerLineStatus) -eq 'Online' }
+$script:wheaReadError = $false
 function Get-Whea([datetime]$from, [datetime]$to) {
-  @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-WHEA-Logger'; StartTime = $from; EndTime = $to } -ErrorAction SilentlyContinue | ForEach-Object {
+  # A real read failure must not look like "0 errors" (that would be a false NEGATIVE).
+  try { $evs = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-WHEA-Logger'; StartTime = $from; EndTime = $to } -ErrorAction Stop) }
+  catch { if ($_.FullyQualifiedErrorId -notlike 'NoMatchingEventsFound*') { $script:wheaReadError = $true }; return @() }
+  @($evs | ForEach-Object {
     $apic = $null; $unit = ''
     $raw = (([xml]$_.ToXml()).Event.EventData.Data | Where-Object Name -eq 'RawData').'#text'
     if ($raw -and $raw.Length -ge 256) { $b = HexToBytes $raw
@@ -52,6 +56,8 @@ function Get-Whea([datetime]$from, [datetime]$to) {
             if ($o + 80 -le $b.Length) { $apic = [int][BitConverter]::ToUInt32($b, $o + 68); $ip = [BitConverter]::ToUInt64($b, $o + 72)
               $unit = '0x{0:X}/0x{1:X}' -f (($ip -shr 32) -band 0xFFF), (($ip -shr 48) -band 0xFFFF) } } } } }
     [pscustomobject]@{ t = $_.TimeCreated; id = $_.Id; apic = $apic; unit = $unit } }) }
+$tpcCpu = @(Get-CimInstance Win32_Processor)[0]
+$TPC = if ($tpcCpu -and $tpcCpu.NumberOfCores -gt 0) { [Math]::Max(1, [int]($tpcCpu.NumberOfLogicalProcessors / $tpcCpu.NumberOfCores)) } else { 2 }
 function UnitName($u) { switch ($u) { '0xB0/0x10' { 'LS_V2 (L1 data cache)' } '0xB0/0x0' { 'LS (L1 data)' } '0xB0/0x1' { 'IF (L1 instr.)' } '0xB0/0x2' { 'L2' } '0xB0/0x3' { 'DE (decode)' } '0xB0/0x5' { 'EX (execution)' } '0xB0/0x6' { 'FP' } '0xB0/0x7' { 'L3' } '0x96/0x0' { 'UMC (memory ctrl)' } '0x96/0x1' { 'UMC_V2 (memory ctrl)' } default { if ($u) { "other $u" } else { 'not decoded' } } } }
 function DeviceId { $bios = Get-CimInstance Win32_BIOS; $mg = (Get-ItemProperty 'Registry::HKLM\SOFTWARE\Microsoft\Cryptography').MachineGuid
   (([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes("$($bios.SerialNumber)|$mg")) | Select-Object -First 4 | ForEach-Object { $_.ToString('x2') }) -join '') }
@@ -77,13 +83,14 @@ function Write-Report([string]$runFile) {
     if (-not $ph[$k] -or -not $ph[$k]['start']) { $rows += "| $k | not reached | | | |"; continue }
     $s = $ph[$k]['start']; $e = if ($ph[$k]['end']) { $ph[$k]['end'] } else { $lastT }
     $w = Get-Whea $s $e; $tot[$k] = $w.Count
-    $byApic = (@($w | Where-Object { $null -ne $_.apic } | Group-Object apic | Sort-Object Count -Descending | ForEach-Object { "APIC $($_.Name) (core $([Math]::Floor([int]$_.Name / 2))): $($_.Count)" }) -join ', ')
+    $byApic = (@($w | Where-Object { $null -ne $_.apic } | Group-Object apic | Sort-Object Count -Descending | ForEach-Object { "APIC $($_.Name) (core $([Math]::Floor([int]$_.Name / $TPC))): $($_.Count)" }) -join ', ')
     $units = (@($w | Group-Object unit | ForEach-Object { "$(UnitName $_.Name) x$($_.Count)" }) -join ', ')
     $note = if ($crashed -and $crashPhase -eq $k) { ' **(crash during this phase)**' } else { '' }
     $rows += "| $k$note | {0:N1} min | {1} | {2} | {3} |" -f ($e - $s).TotalMinutes, $w.Count, $(if ($byApic) { $byApic } else { '-' }), $(if ($units) { $units } else { '-' })
   }
   $a0 = [int]$tot['A0']; $b = [int]$tot['B']; $a1 = [int]$tot['A1']
-  $verdict = if ($meta['mode'] -eq 'rehearsal') { 'REHEARSAL (harmless 90 % cap): mechanics checked, no low-voltage stimulus. Not a result.' }
+  $verdict = if ($script:wheaReadError -or $meta['whea_read_error'] -eq '1') { 'INCONCLUSIVE: the Windows event log could not be read, so missing errors cannot be ruled out. Run it again.' }
+    elseif ($meta['mode'] -eq 'rehearsal') { 'REHEARSAL (harmless 90 % cap): mechanics checked, no low-voltage stimulus. Not a result.' }
     elseif ($b -gt 0 -and $a0 -eq 0 -and $a1 -eq 0) { 'POSITIVE: hardware errors appeared ONLY while the CPU was at its lowest voltage, and stopped afterwards. Consistent with a low-voltage (Vmin) defect in the core(s) listed above.' }
     elseif ($crashed -and $crashPhase -eq 'B' -and $a0 -eq 0) { 'POSITIVE (crash): the PC crashed while the CPU was at its lowest voltage, with no errors at normal settings.' }
     elseif ($b -eq 0 -and -not $crashed) { 'NEGATIVE: no hardware errors at the lowest voltage during this run.' }
@@ -186,6 +193,7 @@ function RunPhase([string]$name, [int]$minutes, [int]$stopAfter) {
     if (-not (OnAC)) { Say 'Charger disconnected: ending the test early (restoring settings).'; break }
     if ($stopAfter -gt 0 -and $n -ge $stopAfter) { Say "$n hardware errors in phase $name : ending this phase early (enough evidence, less crash risk)."; break }
   }
+  if ($script:wheaReadError) { W '#META whea_read_error=1' }
   W "#PHASE $name end $((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))"; Say "Phase $name done: $n WHEA error(s)."
 }
 try {
@@ -204,7 +212,7 @@ try {
   Start-Sleep -Seconds 2; $pc = PerfMax; W "#META perf_cap=$pc"
   Say "Cap active in memory. Registry back to min $rMin % / max $rMax % (test values were stored for $win ms). Max core performance now $pc %."
   if ($rMin -ne $origMin -or $rMax -ne $origMax) { throw 'Registry does not hold the original values. Aborting.' }
-  if (-not $Rehearsal -and $pc -gt 60) { throw "The cap did not take effect (performance $pc %). Possibly an overlay power mode or OEM tool. Aborting: nothing to test." }
+  if (-not $Rehearsal -and ($null -eq $pc -or $pc -gt 60)) { throw "The cap did not take effect or could not be verified (performance '$pc' %). Possibly an overlay power mode or OEM tool. Aborting: nothing to test." }
   RunPhase 'B' $LowMin $StopAfter
   powercfg /setactive $scheme | Out-Null; $capApplied = $false
   Say "Normal settings re-activated. Max core performance: $(PerfMax) %."

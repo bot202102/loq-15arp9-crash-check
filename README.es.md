@@ -13,6 +13,10 @@ En nuestro equipo todo eso venía de **un núcleo del procesador cuya caché L1 
 
 **Necesitamos tus datos** para saber si es un problema de lote o de diseño, o solo unos pocos equipos fallados. Toma 1 minuto (revisión de solo lectura) o unos 23 minutos (prueba activa opcional).
 
+![Monitor en vivo con 31 errores de hardware, todos del núcleo 7, solo durante la fase de bajo voltaje](docs/live-monitor.png)
+
+*El monitor en vivo (`loq-live-monitor.ps1`) reproduciendo nuestra corrida de referencia del 30-oct (`-Since` / `-RunLog`): eventos WHEA reales del registro de Windows, 31 errores, todos del núcleo 7, todos en la fase B (voltaje mínimo), ninguno antes ni después.*
+
 ---
 
 ## 1. Revisión de solo lectura (1 minuto, no cambia nada)
@@ -51,6 +55,16 @@ Corre una carga liviana en **todos** los procesadores lógicos, así que aparece
 **Si se cuelga:** deja que reinicie, inicia sesión y ejecuta `loq-vmin-test.ps1 -Report`. Lee la corrida interrumpida y genera el reporte. Que se cuelgue en la fase B también es un resultado.
 
 Para revisar primero el mecanismo, sin bajar el voltaje: `loq-vmin-test.ps1 -Rehearsal` (3 × 1 min con un tope inofensivo de 90 %).
+
+### Míralo en vivo
+
+`RUN-VMIN-TEST.cmd` abre además una segunda ventana, **`loq-live-monitor.ps1`**. Cada 3 segundos muestra la fase actual, el rendimiento del CPU (si el tope de bajo voltaje está activo), si el cargador está conectado y un gran aviso **verde "SIN ERRORES DE HARDWARE" o rojo "N ERRORES DE HARDWARE – núcleo X: N"**, con los errores por fase y los últimos errores decodificados (núcleo, APIC id, unidad del CPU).
+
+- Es **solo lectura**: solo lee el registro de eventos de Windows. Cerrarlo no afecta la prueba.
+- Puedes correrlo solo cuando quieras: `loq-live-monitor.ps1` (desde ahora), o `loq-live-monitor.ps1 -Since "2026-10-30 02:00"` para mirar hacia atrás.
+- Si no puede leer el registro lo dice en **amarillo**, en vez de mostrar un falso verde.
+- Interfaz en español o inglés (automática, o `-Lang es|en`).
+- Útil para la visita de un técnico: corre la prueba en la laptop reparada **antes de firmar la conformidad**. Una placa sana da 0 errores en la fase B.
 
 ### Por qué tu PC no queda en un bucle de cuelgues
 

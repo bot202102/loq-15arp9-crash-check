@@ -1,0 +1,14 @@
+{
+  "edition": "v2-publica-2026-11-10",
+  "historical_commit": "889e945f9fee1d6d6f57e938070280779c36460a",
+  "collector_status": "EXPERIMENTAL_WINDOWS_VALIDATION_PENDING",
+  "powershell_syntax_validation": "PENDING",
+  "windows_functional_validation": "PENDING",
+  "affected_laptop_test": "NOT_PERFORMED",
+  "active_test_fix": "NOT_IMPLEMENTED",
+  "active_cmd_launcher": "PAUSED_ON_THIS_BRANCH",
+  "legacy_ps1": "RETAINED_FOR_REVIEW_DO_NOT_EXECUTE",
+  "synthetic_classifier_scope": "Python transcription of selected legacy conditions; not PowerShell or hardware",
+  "private_evidence_included": false,
+  "main_merge_authorized": false
+}

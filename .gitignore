@@ -1,4 +1,28 @@
-# outputs generated on your own PC
+# Outputs generated on your own PC
 /loq-report-*
 /vmin-report-*
 /vmin-run-*.log
+
+# Private evidence: never commit raw acquisitions, emails, dumps or disk images.
+/evidence/
+/evidencia/
+/private/
+/EvidenciaLenovo/
+**/lenovo-20*/
+*.evtx
+*.dmp
+*.eml
+*.msg
+*.pst
+*.ost
+*.e01
+*.E01
+*.vhd
+*.vhdx
+*.iso
+*.zip
+*.7z
+__pycache__/
+*.pyc
+
+# This is a convenience safeguard, not a privacy guarantee. Review git diff --cached.
